@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glass Calculator Pro</title>
+    <style>
+        :root {
+            --bg-deep: #050505;
+            --bg-glass: rgba(20, 25, 35, 0.85);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --accent-color: #3fa9f5;
+            --text-main: #ffffff;
+            --text-muted: #8b9bb4;
+            --key-bg: rgba(255, 255, 255, 0.05);
+            --key-hover: rgba(255, 255, 255, 0.15);
+            --op-color: rgba(63, 169, 245, 0.15);
+            --op-text: #3fa9f5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            outline: none;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 50% 0%, #1a253a, #000000);
+            overflow: hidden;
+        }
+
+        /* --- حاوية التطبيق --- */
+        .app {
+            width: 100%;
+            max-width: 380px;
+            height: 100%;
+            max-height: 800px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--border-glass);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @media (min-width: 400px) {
+            .app {
+                height: 85vh;
+                border-radius: 35px;
+                box-shadow: 0 0 50px rgba(0,0,0,0.6);
+            }
+        }
+
+        /* SVG إعدادات عامة */
+        svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+
+        /* --- الرأس --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        .header-title {
+            color: var(--text-main);
+            font-size: 1.2rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .icon-btn:active { background: rgba(255,255,255,0.1); transform: scale(0.9); }
+
+        /* --- إدارة الشاشات --- */
+        .view-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .view {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s;
+            background: transparent;
+        }
+
+        /* حالات الحركة */
+        .hidden-right { transform: translateX(100%); opacity: 0; pointer-events: none; }
+        .hidden-left { transform: translateX(-100%); opacity: 0; pointer-events: none; }
+        .visible { transform: translateX(0); opacity: 1; pointer-events: all; }
+
+        /* --- 1. الآلة الحاسبة (الرئيسية) --- */
+        .calc-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-end;
+            padding: 20px;
+            text-align: right;
+        }
+
+        .history { color: var(--text-muted); font-size: 1.1rem; min-height: 25px; margin-bottom: 5px; }
+        .result { color: var(--text-main); font-size: 3.8rem; font-weight: 300; line-height: 1.1; }
+
+        .calc-pad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            padding: 20px;
+            padding-bottom: 30px;
+        }
+
+        .btn {
+            width: 65px; height: 65px;
+            border-radius: 50%;
+            border: none;
+            background: var(--key-bg);
+            color: white;
+            font-size: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: auto;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        
+        .btn:active { transform: scale(0.92); background: var(--key-hover); }
+        .btn.op { color: var(--op-text); background: var(--op-color); font-size: 1.6rem; }
+        .btn.eq { background: var(--accent-color); color: #000; box-shadow: 0 0 15px var(--accent-color); border: none;}
+
+        /* --- 2. القائمة الرئيسية للمحول --- */
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            padding: 20px;
+            padding-top: 40px;
+        }
+
+        .menu-card {
+            aspect-ratio: 1.2/1;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .menu-card:active { background: rgba(255,255,255,0.08); transform: scale(0.96); }
+        .menu-card svg { width: 32px; height: 32px; stroke: var(--accent-color); }
+        .menu-text { color: var(--text-main); font-size: 1rem; }
+
+        /* --- 3. شاشة التحويل الفرعية --- */
+        .converter-ui { flex: 1; display: flex; flex-direction: column; }
+
+        .unit-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 25px;
+            position: relative;
+        }
+        
+        .unit-header { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; cursor: pointer; }
+        .unit-name { color: var(--text-muted); font-size: 0.9rem; }
+        .caret-icon { width: 14px; height: 14px; color: var(--accent-color); }
+
+        .hidden-select {
+            position: absolute; top: 20px; left: 20px;
+            width: 200px; height: 40px; opacity: 0; cursor: pointer;
+        }
+
+        .unit-value {
+            font-size: 3.2rem;
+            color: var(--text-main);
+            text-align: right;
+            font-weight: 300;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .unit-symbol {
+            position: absolute; right: 25px; bottom: 20px;
+            font-size: 0.9rem; color: var(--accent-color);
+            background: rgba(63, 169, 245, 0.15);
+            padding: 2px 8px; border-radius: 6px;
+        }
+
+        .swap-area {
+            height: 40px; display: flex; align-items: center; justify-content: center; position: relative;
+        }
+        .separator-line { position: absolute; width: 85%; height: 1px; background: var(--border-glass); }
+        .swap-btn {
+            background: #0a0f18; border: 1px solid var(--border-glass);
+            color: var(--accent-color); width: 40px; height: 40px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            z-index: 2; cursor: pointer;
+        }
+        .swap-btn:active { transform: scale(0.9); }
+
+        .numpad {
+            background: rgba(0,0,0,0.3); padding: 20px;
+            border-top-left-radius: 30px; border-top-right-radius: 30px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+        }
+
+        .key {
+            height: 60px; background: var(--key-bg); border-radius: 15px;
+            border: none; color: white; font-size: 1.6rem;
+            cursor: pointer; display: flex; justify-content: center; align-items: center;
+        }
+        .key:active { background: var(--key-hover); transform: scale(0.96); }
+        .key-c { color: #ff5252; background: rgba(255, 82, 82, 0.1); }
+
+    </style>
+</head>
+<body>
+
+    <!-- ملف الصوت مدمج (Base64) لتجنب الملفات الخارجية -->
+    <!-- صوت نقرة خفيفة -->
+    <audio id="clickSound">
+        <source src="https://image2url.com/r2/default/audio/1770799682158-0b97821b-54d8-4cf3-8d1f-4f31d493e290.mp3" type="audio/mp3">
+    </audio>
+
+    <div class="app">
+        <header>
+            <button class="icon-btn" id="navBtn" onclick="playSound(); handleNav()">
+                <!-- سيتم وضع الأيقونة هنا بالجافاسكربت -->
+            </button>
+            <div class="header-title" id="appTitle">Calculator</div>
+            <div style="width: 44px;"></div>
+        </header>
+
+        <div class="view-container">
+            
+            <!-- 1. الآلة الحاسبة (أصبحت هي الواجهة الأولى visible) -->
+            <div id="view-calculator" class="view visible">
+                <div class="calc-display">
+                    <div class="history" id="calcHist"></div>
+                    <div class="result" id="calcRes">0</div>
+                </div>
+                <div class="calc-pad">
+                    <button class="btn op" onclick="playSound(); cIn('C')">C</button>
+                    <button class="btn op" onclick="playSound(); cIn('^')">^</button>
+                    <button class="btn op" onclick="playSound(); cIn('%')">%</button>
+                    <button class="btn op" onclick="playSound(); cIn('/')">÷</button>
+                    
+                    <button class="btn" onclick="playSound(); cIn('7')">7</button>
+                    <button class="btn" onclick="playSound(); cIn('8')">8</button>
+                    <button class="btn" onclick="playSound(); cIn('9')">9</button>
+                    <button class="btn op" onclick="playSound(); cIn('*')">×</button>
+                    
+                    <button class="btn" onclick="playSound(); cIn('4')">4</button>
+                    <button class="btn" onclick="playSound(); cIn('5')">5</button>
+                    <button class="btn" onclick="playSound(); cIn('6')">6</button>
+                    <button class="btn op" onclick="playSound(); cIn('-')">−</button>
+                    
+                    <button class="btn" onclick="playSound(); cIn('1')">1</button>
+                    <button class="btn" onclick="playSound(); cIn('2')">2</button>
+                    <button class="btn" onclick="playSound(); cIn('3')">3</button>
+                    <button class="btn op" onclick="playSound(); cIn('+')">+</button>
+                    
+                    <button class="btn" onclick="playSound(); cIn('.')">.</button>
+                    <button class="btn" onclick="playSound(); cIn('0')">0</button>
+                    <button class="btn backspace" onclick="playSound(); cIn('bk')">
+                        <svg viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+                    </button>
+                    <button class="btn eq" onclick="playSound(); cIn('=')">=</button>
+                </div>
+            </div>
+
+            <!-- 2. القائمة الرئيسية للمحول (مخفية hidden-right) -->
+            <div id="view-menu" class="view hidden-right">
+                <div class="menu-grid">
+                    <div class="menu-card" onclick="playSound(); openConverter('length')">
+                        <svg viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M6 12v-2"/><path d="M10 12v-3"/><path d="M14 12v-2"/><path d="M18 12v-3"/></svg>
+                        <div class="menu-text">Length</div>
+                    </div>
+                    <div class="menu-card" onclick="playSound(); openConverter('area')">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                        <div class="menu-text">Area</div>
+                    </div>
+                    <div class="menu-card" onclick="playSound(); openConverter('volume')">
+                        <svg viewBox="0 0 24 24"><path d="M12 2.69l5.74 5.74C20.9 11.59 20.9 16.35 17.74 19.5c-3.17 3.17-8.31 3.17-11.48 0-3.17-3.16-3.17-8.29 0-11.46L12 2.69z"/></svg>
+                        <div class="menu-text">Volume</div>
+                    </div>
+                    <div class="menu-card" onclick="playSound(); openConverter('mass')">
+                        <svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L3.41 13.41a2 2 0 0 1 0-2.83l7.17-7.17a2 2 0 0 1 2.83 0l7.17 7.17a2 2 0 0 1 0 2.83z"/><path d="M12 3v18"/><path d="M3 12h18"/></svg>
+                        <div class="menu-text">Mass</div>
+                    </div>
+                    <div class="menu-card" onclick="playSound(); openConverter('temp')">
+                        <svg viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+                        <div class="menu-text">Temp</div>
+                    </div>
+                    <div class="menu-card" onclick="playSound(); openConverter('time')">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <div class="menu-text">Time</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. شاشة التحويل (مخفية) -->
+            <div id="view-converter" class="view hidden-right">
+                <div class="converter-ui">
+                    <div class="unit-box">
+                        <div class="unit-header">
+                            <span class="unit-name" id="lblTop">Unit 1</span>
+                            <svg class="caret-icon" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                        </div>
+                        <select id="selTop" class="hidden-select" onchange="updateUnits()"></select>
+                        <div class="unit-value" id="valTop">0</div>
+                        <div class="unit-symbol" id="symTop">u1</div>
+                    </div>
+
+                    <div class="swap-area">
+                        <div class="separator-line"></div>
+                        <div class="swap-btn" onclick="playSound()">
+                            <svg viewBox="0 0 24 24"><path d="M7 10l5-6 5 6"/><path d="M17 14l-5 6-5-6"/></svg>
+                        </div>
+                    </div>
+
+                    <div class="unit-box">
+                        <div class="unit-header">
+                            <span class="unit-name" id="lblBot">Unit 2</span>
+                            <svg class="caret-icon" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                        </div>
+                        <select id="selBot" class="hidden-select" onchange="updateUnits()"></select>
+                        <div class="unit-value" id="valBot">0</div>
+                        <div class="unit-symbol" id="symBot">u2</div>
+                    </div>
+                </div>
+
+                <div class="numpad">
+                    <button class="key" onclick="playSound(); inp('7')">7</button>
+                    <button class="key" onclick="playSound(); inp('8')">8</button>
+                    <button class="key" onclick="playSound(); inp('9')">9</button>
+                    <button class="key" onclick="playSound(); inp('4')">4</button>
+                    <button class="key" onclick="playSound(); inp('5')">5</button>
+                    <button class="key" onclick="playSound(); inp('6')">6</button>
+                    <button class="key" onclick="playSound(); inp('1')">1</button>
+                    <button class="key" onclick="playSound(); inp('2')">2</button>
+                    <button class="key" onclick="playSound(); inp('3')">3</button>
+                    <button class="key" onclick="playSound(); inp('.')">.</button>
+                    <button class="key" onclick="playSound(); inp('0')">0</button>
+                    <button class="key key-c" onclick="playSound(); inp('C')">C</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // دالة الصوت
+        const audio = document.getElementById('clickSound');
+        function playSound() {
+            audio.currentTime = 0; // إعادة الصوت للبداية عند النقر السريع
+            audio.play();
+        }
+
+        // الأيقونات
+        const iconCalc = `<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="8" x2="8" y2="8"/><line x1="16" y1="16" x2="16" y2="16"/></svg>`;
+        const iconBack = `<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>`;
+        const iconGrid = `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`;
+
+        // العناصر
+        const views = {
+            menu: document.getElementById('view-menu'),
+            conv: document.getElementById('view-converter'),
+            calc: document.getElementById('view-calculator')
+        };
+        const title = document.getElementById('appTitle');
+        const navBtn = document.getElementById('navBtn');
+        
+        // الحالة الافتراضية الآن هي الآلة الحاسبة
+        let state = 'calc'; 
+
+        function init() {
+            // إعداد الواجهة الأولى لتكون الحاسبة
+            navBtn.innerHTML = iconGrid; // الزر يعرض أيقونة القائمة للذهاب للمحول
+            title.innerText = "Calculator";
+        }
+        init();
+
+        // منطق التنقل
+        function handleNav() {
+            if (state === 'calc') {
+                // من الحاسبة -> اذهب للقائمة
+                switchView('menu');
+                title.innerText = "Unit Converter";
+                navBtn.innerHTML = iconCalc; // الزر يصبح آلة حاسبة
+            } else if (state === 'menu') {
+                // من القائمة -> اذهب للحاسبة
+                switchView('calc');
+                title.innerText = "Calculator";
+                navBtn.innerHTML = iconGrid;
+            } else if (state === 'conv') {
+                // من المحول الفرعي -> اذهب للقائمة
+                switchView('menu');
+                title.innerText = "Unit Converter";
+                navBtn.innerHTML = iconCalc;
+            }
+        }
+
+        function switchView(target) {
+            Object.values(views).forEach(v => {
+                v.classList.remove('visible');
+                v.classList.add('hidden-right');
+            });
+
+            if (target === 'menu') {
+                views.menu.classList.remove('hidden-right', 'hidden-left');
+                views.menu.classList.add('visible');
+            } else if (target === 'calc') {
+                views.menu.classList.add('hidden-right'); // القائمة تذهب يمين
+                views.calc.classList.remove('hidden-left'); // الحاسبة تأتي
+                views.calc.classList.add('visible');
+            } else if (target === 'conv') {
+                views.menu.classList.add('hidden-left');
+                views.conv.classList.remove('hidden-right');
+                views.conv.classList.add('visible');
+            }
+            state = target;
+        }
+
+        // --- منطق البيانات والتحويل ---
+        const data = {
+            length: { m: 'Meter', km: 'Kilometer', cm: 'Centimeter', ft: 'Foot', in: 'Inch' },
+            area: { 'm²': 'Sq Meter', 'ft²': 'Sq Foot', ac: 'Acre', ha: 'Hectare' },
+            volume: { l: 'Liter', ml: 'Milliliter', gal: 'Gallon', 'm³': 'Cubic Meter' },
+            mass: { kg: 'Kilogram', g: 'Gram', lb: 'Pound', oz: 'Ounce' },
+            temp: { C: 'Celsius', F: 'Fahrenheit', K: 'Kelvin' },
+            time: { s: 'Second', min: 'Minute', h: 'Hour', d: 'Day' }
+        };
+        const rates = {
+            length: { m:1, km:1000, cm:0.01, ft:0.3048, in:0.0254 },
+            mass: { kg:1, g:0.001, lb:0.45359, oz:0.02834 },
+            time: { s:1, min:60, h:3600, d:86400 },
+            area: { 'm²':1, 'ft²':0.0929, ac:4046.8, ha:10000 },
+            volume: { l:1, ml:0.001, gal:3.785, 'm³':1000 }
+        };
+
+        let currVal = "0";
+        let activeCat = '';
+
+        function openConverter(cat) {
+            activeCat = cat;
+            title.innerText = cat.charAt(0).toUpperCase() + cat.slice(1);
+            navBtn.innerHTML = iconBack;
+            switchView('conv');
+            
+            const s1 = document.getElementById('selTop');
+            const s2 = document.getElementById('selBot');
+            s1.innerHTML = ''; s2.innerHTML = '';
+            
+            Object.entries(data[cat]).forEach(([k, v]) => {
+                s1.add(new Option(v, k));
+                s2.add(new Option(v, k));
+            });
+            s2.selectedIndex = 1;
+            currVal = "0";
+            updateUnits();
+        }
+
+        function updateUnits() {
+            const s1 = document.getElementById('selTop');
+            const s2 = document.getElementById('selBot');
+            document.getElementById('lblTop').innerText = s1.options[s1.selectedIndex].text;
+            document.getElementById('lblBot').innerText = s2.options[s2.selectedIndex].text;
+            document.getElementById('symTop').innerText = s1.value;
+            document.getElementById('symBot').innerText = s2.value;
+            calcConv();
+        }
+
+        function inp(n) {
+            if (n === 'C') currVal = "0";
+            else if (currVal === "0" && n !== ".") currVal = n;
+            else {
+                if(n === '.' && currVal.includes('.')) return;
+                currVal += n;
+            }
+            calcConv();
+        }
+
+        function calcConv() {
+            const v1 = document.getElementById('valTop');
+            const v2 = document.getElementById('valBot');
+            const u1 = document.getElementById('selTop').value;
+            const u2 = document.getElementById('selBot').value;
+            
+            v1.innerText = Number(currVal).toLocaleString(undefined, {maximumFractionDigits: 8});
+            
+            let res = 0;
+            let val = parseFloat(currVal);
+
+            if (activeCat === 'temp') {
+                if(u1===u2) res=val;
+                else {
+                    let c = u1==='F' ? (val-32)*5/9 : (u1==='K' ? val-273.15 : val);
+                    res = u2==='F' ? (c*9/5)+32 : (u2==='K' ? c+273.15 : c);
+                }
+            } else {
+                const r = rates[activeCat];
+                res = (val * r[u1]) / r[u2];
+            }
+            
+            v2.innerText = isNaN(res) ? "0" : Number(res.toFixed(6)).toLocaleString(undefined, {maximumFractionDigits: 6});
+        }
+
+        // --- منطق الآلة الحاسبة ---
+        let ex = "0";
+        function cIn(k) {
+            const h = document.getElementById('calcHist');
+            const r = document.getElementById('calcRes');
+            
+            if(k==='C') { ex="0"; h.innerText=""; }
+            else if(k==='bk') { ex=ex.toString().slice(0,-1)|| "0"; }
+            else if(k==='=') {
+                try {
+                    h.innerText = ex;
+                    let cleanEx = ex.replace('×','*').replace('÷','/').replace('^','**').replace(/(\d+)%/g, '($1/100)');
+                    ex = eval(cleanEx).toString();
+                } catch { ex="Error"; }
+            } else {
+                if(ex==="0" && !isNaN(k)) ex=k;
+                else ex+=k;
+            }
+            r.innerText = ex;
+        }
+
+    </script>
+</body>
+</html>
